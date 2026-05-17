@@ -1,0 +1,186 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  settings  Json      @default("{}")
+  projects  Project[]
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model Project {
+  id              String           @id @default(cuid())
+  userId          String           @map("user_id")
+  name            String
+  description     String?
+  settings        Json             @default("{}")
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  styleModels     StyleModel[]
+  characters      Character[]
+  characterLinks  CharacterRelation[]
+  worldItems      WorldItem[]
+  timelineEvents  TimelineEvent[]
+  chapters        Chapter[]
+  sentinelLogs    SentinelLog[]
+  writingSessions WritingSession[]
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@map("projects")
+}
+
+model StyleModel {
+  id             String           @id @default(cuid())
+  projectId      String           @map("project_id")
+  name           String
+  status         String           @default("draft")
+  features       Json             @default("{}")
+  forbiddenWords Json             @default("[]") @map("forbidden_words")
+  lockEnabled    Boolean          @default(false) @map("lock_enabled")
+  project        Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  corpusChunks   CorpusChunk[]
+  calibrationLog CalibrationLog[]
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  @@index([projectId])
+  @@map("style_models")
+}
+
+model CorpusChunk {
+  id           String     @id @default(cuid())
+  styleModelId String     @map("style_model_id")
+  content      String
+  embedding    Unsupported("extensions.vector(1024)")?
+  type         String     @default("core")
+  meta         Json       @default("{}")
+  styleModel   StyleModel @relation(fields: [styleModelId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  @@index([styleModelId])
+  @@map("corpus_chunks")
+}
+
+model CalibrationLog {
+  id           String     @id @default(cuid())
+  styleModelId String     @map("style_model_id")
+  action       String
+  payload      Json       @default("{}")
+  styleModel   StyleModel @relation(fields: [styleModelId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  @@index([styleModelId, createdAt])
+  @@map("calibration_logs")
+}
+
+model Character {
+  id              String              @id @default(cuid())
+  projectId       String              @map("project_id")
+  triggerKeywords String[]            @default([]) @map("trigger_keywords")
+  data            Json                @default("{}")
+  project         Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  fromRelations   CharacterRelation[] @relation("CharacterA")
+  toRelations     CharacterRelation[] @relation("CharacterB")
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+
+  @@index([projectId])
+  @@map("characters")
+}
+
+model CharacterRelation {
+  id         String    @id @default(cuid())
+  projectId  String    @map("project_id")
+  characterA String    @map("character_a")
+  characterB String    @map("character_b")
+  affinity   Int       @default(0)
+  notes      String?
+  project    Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  charA      Character @relation("CharacterA", fields: [characterA], references: [id], onDelete: Cascade)
+  charB      Character @relation("CharacterB", fields: [characterB], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  @@index([projectId])
+  @@index([characterA])
+  @@index([characterB])
+  @@map("character_relations")
+}
+
+model WorldItem {
+  id              String   @id @default(cuid())
+  projectId       String   @map("project_id")
+  type            String
+  triggerKeywords String[] @default([]) @map("trigger_keywords")
+  data            Json     @default("{}")
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([projectId])
+  @@map("world_items")
+}
+
+model TimelineEvent {
+  id        String   @id @default(cuid())
+  projectId String   @map("project_id")
+  data      Json     @default("{}")
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([projectId])
+  @@map("timeline_events")
+}
+
+model Chapter {
+  id           String        @id @default(cuid())
+  projectId    String        @map("project_id")
+  title        String
+  content      String        @default("")
+  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sentinelLogs SentinelLog[]
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  @@index([projectId])
+  @@map("chapters")
+}
+
+model SentinelLog {
+  id                  String   @id @default(cuid())
+  projectId           String   @map("project_id")
+  chapterId           String?  @map("chapter_id")
+  conflictDescription String   @map("conflict_description")
+  resolved            Boolean  @default(false)
+  project             Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  chapter             Chapter? @relation(fields: [chapterId], references: [id], onDelete: SetNull)
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  @@index([projectId, createdAt])
+  @@index([chapterId])
+  @@map("sentinel_logs")
+}
+
+model WritingSession {
+  id        String   @id @default(cuid())
+  projectId String   @map("project_id")
+  stats     Json     @default("{}")
+  note      String?
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([projectId, createdAt])
+  @@map("writing_sessions")
+}
