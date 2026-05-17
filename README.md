@@ -1,36 +1,91 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 「共生」AI辅助写作工具使用指南
 
-## Getting Started
+「共生」是一款本地个人AI辅助写作工具。核心原则为：AI 作为协作者，不自动代笔。
 
-First, run the development server:
+## 一、 文风实验室
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+用于训练和调整AI的生成文本风格。
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 1. 创建模型
+1. 点击**创建模型**。
+2. 填写**模型名称**。
+3. 在**核心语料**中粘贴200字以上的个人原创文本。
+4. 可选填**速写捕捉**与**反面教材**以提供额外约束。
+5. 点击**提取并保存**，生成风格存档。
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 2. A/B 校准
+1. 选中已创建的风格模型。
+2. 在**场景**框中输入内容，点击**生成 AB 选项**。
+3. 对比版本 A 和版本 B，点击对应按钮进行选择。
+4. 若不满意，可在下方文本框输入自定义版本，并点击**提供我的版本**。
+5. 提交的历史文本会在下方列表中显示，支持点击右下角按钮复制。
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 3. 段落风格解析
+1. 在左侧文本框粘贴目标段落，点击**拆解段落**，系统将提取句式、节奏、通感和骨架特征。
+2. 在下方文本框输入新主题，点击**重组生成**。
+3. 系统将输出“普通 AI 写法”与结合了拆解特征的“融合写法”供参考。
 
-## Learn More
+### 4. 禁忌与强化
+- **禁忌词**：输入词汇并添加。AI 在后续生成中将避免使用这些词汇。
+- **风格滑块**：拖动滑块调整叙事距离、比喻密度、结尾倾向的数值（0-100），实时更新模型的生成偏好。
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 二、 人物与世界
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+用于管理故事设定，防止AI生成内容偏离基础架构。
 
-## Deploy on Vercel
+### 1. 人物档案
+1. 点击**新建角色**。
+2. 填写基础信息（姓名、性别、派系等）。
+3. 填写深层设定（创伤事件、当前诉求、压力反应、语言风格等）。
+4. 保存后，角色名将作为触发词存入系统。
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### 2. 事物/地点
+1. 选择类型（地点、组织、概念、特殊物品）。
+2. 填写名称、描写定调及规则与特性。
+3. 保存后，事物名称及别名将作为触发词存入系统。
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### 3. 关系图
+1. 选择角色 A 与角色 B。
+2. 设置好感度数值（-100 到 100）并添加备注。
+3. 保存后，右侧将生成人物关系网络图。
+
+---
+
+## 三、 时间线
+
+用于记录剧情事件与逻辑。
+
+1. 填写事件标题、时间点与当前状态。
+2. 简述事件内容。
+3. 勾选该事件涉及的**角色**与**地点**。
+4. 勾选前置或平行的**关联事件**。
+5. 填写**因果说明**记录事件逻辑。
+6. 点击保存。
+
+---
+
+## 四、 写作室
+
+主创作区域。
+
+### 1. 基础写作与设定偏离提醒
+- **主编辑器**：在页面中央区域进行纯文本输入。
+- **自动检测**：停笔 3 秒后，系统自动扫描最近输入的 500 字。
+- **提醒日志**：若前文触发了“人物与世界”中设置的触发词，且内容存在设定冲突，右侧面板将显示日志提醒（不强制修改）。
+
+### 2. 灵感漫游
+- 点击左上角按钮展开左侧面板。
+- 在输入框提交提问或剧情想法。
+- AI 将根据问题进行追问或建议。点击对话下方的**展开聊聊**或**不，换个方向**进行深入交互。
+
+### 3. 扩写模式
+- 切换顶部按钮进入**扩写模式**。
+- **大纲输入**：在左侧文本框输入剧情动作或对话大纲。
+- **选择模型**：在右侧下拉菜单选择已训练的文风模型。
+- **生成与处理**：
+  1. 点击 **生成草稿**。
+  2. 若满意，点击 **采纳并插入正文**，文本将自动追加至主编辑器末尾。
+  3. 若需修改，在文本框输入意见后点击 **按意见重写**。
+  4. 若放弃，点击 **丢弃草稿**。
