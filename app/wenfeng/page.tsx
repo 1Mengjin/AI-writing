@@ -395,7 +395,7 @@ export default function WenfengPage() {
             </div>
             <h1 className="text-3xl font-semibold">调准你的另一个声音</h1>
             <p className="mt-3 max-w-2xl leading-7 text-muted-foreground">
-              A/B 选择负责偏好校准，沙盘负责拆骨架，右栏控制禁忌与倾向。
+              A/B 选择负责细节微调，沙盘负责拆骨架，右栏控制禁忌与倾向。
             </p>
           </div>
           <Button type="button" variant="outline" onClick={loadList}>
@@ -491,7 +491,7 @@ export default function WenfengPage() {
                       </span>
                     </div>
                     <div className="mt-2 text-sm text-muted-foreground">
-                      语料切片：{item.chunkCount ?? 0}
+                      已学习的文本段落数：{item.chunkCount ?? 0}
                     </div>
                   </button>
                 ))
@@ -502,7 +502,7 @@ export default function WenfengPage() {
 
         <div className="grid gap-5 xl:grid-cols-[0.95fr_1.25fr_0.8fr]">
           <section className="rounded-lg border border-border bg-card p-5">
-            <h2 className="text-xl font-semibold">A/B 校准</h2>
+            <h2 className="text-xl font-semibold">文风偏好选择</h2>
             <label className="mt-4 block text-sm">
               场景
               <input
@@ -571,7 +571,7 @@ export default function WenfengPage() {
           </section>
 
           <section className="rounded-lg border border-border bg-card p-5">
-            <h2 className="text-xl font-semibold">拆解-重组沙盘</h2>
+            <h2 className="text-xl font-semibold">段落风格解析室</h2>
             <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_260px]">
               <textarea
                 value={yuanDuan}
@@ -627,13 +627,13 @@ export default function WenfengPage() {
               </Button>
               <div className="mt-4 grid gap-4 lg:grid-cols-2">
                 <article className="rounded-md border border-border p-4">
-                  <div className="mb-2 text-sm font-medium">通用AI写法</div>
+                  <div className="mb-2 text-sm font-medium">普通AI写法</div>
                   <p className="whitespace-pre-wrap text-sm leading-7 text-muted-foreground">
                     {rewrite.tongyong ?? "等待生成。"}
                   </p>
                 </article>
                 <article className="rounded-md border border-amber-500/40 bg-amber-50 p-4 dark:bg-amber-950">
-                  <div className="mb-2 text-sm font-medium">骨干迁移写法</div>
+                  <div className="mb-2 text-sm font-medium">模仿你的融合写法</div>
                   <p className="whitespace-pre-wrap text-sm leading-7">
                     {rewrite.chongzuShengcheng ?? "等待生成。"}
                   </p>

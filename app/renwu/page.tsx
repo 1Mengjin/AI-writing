@@ -357,10 +357,10 @@ export default function RenwuPage() {
       <div className="mx-auto max-w-7xl px-5 py-8">
         <header className="mb-8 flex flex-col justify-between gap-4 border-b border-stone-300 pb-6 dark:border-stone-800 md:flex-row md:items-end">
           <div>
-            <div className="text-sm text-stone-500">Phase 2 / Step 1</div>
+            <div className="text-sm text-stone-500">世界观构建</div>
             <h1 className="mt-1 text-3xl font-semibold">人物与事物</h1>
             <p className="mt-3 max-w-2xl leading-7 text-stone-600 dark:text-stone-400">
-              角色、地点、物品都会写入触发词，后续给写作室做静默白名单。
+              在这里记录的角色、地点和特殊物品，会在你后续写作时被 AI 自动识别。这能防止 AI 助手在辅助写作时违背你的基础设定。
             </p>
           </div>
           <Button type="button" variant="outline" onClick={loadAll}>

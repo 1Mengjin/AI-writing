@@ -423,7 +423,7 @@ export default function XiezuoshiPage() {
               {expandLoading ? (
                 <Loader2 className="size-4 animate-spin" />
               ) : null}
-              Generate
+              生成草稿
             </Button>
           </div>
           <textarea
@@ -433,9 +433,9 @@ export default function XiezuoshiPage() {
             className="mt-4 min-h-[62vh] w-full resize-y rounded-md border border-zinc-200 bg-[#fffdf8] p-4 text-base leading-8 outline-none focus:ring-2 focus:ring-zinc-500 dark:border-zinc-800 dark:bg-zinc-950"
           />
           <div className="mt-3 grid gap-2 text-xs text-zinc-500">
-            <div>recentText：自动截取主编辑器最后 1000 字</div>
-            <div>characterStates：{contextData.characterStates.length}</div>
-            <div>itemRules：{contextData.itemRules.length}</div>
+            <div>参考前文：自动截取主编辑器最后 1000 字</div>
+            <div>涉及登场角色：{contextData.characterStates.length}</div>
+            <div>涉及物品与地点：{contextData.itemRules.length}</div>
           </div>
         </section>
 
@@ -472,13 +472,13 @@ export default function XiezuoshiPage() {
           <input
             value={rewriteNote}
             onChange={(e) => setRewriteNote(e.target.value)}
-            placeholder="Rewrite note，例如：动作描写太啰嗦，精简点"
+            placeholder="修改意见，例如：动作描写太啰嗦，精简点"
             className="mt-3 h-10 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-zinc-500 dark:border-zinc-800 dark:bg-zinc-950"
           />
 
           <div className="mt-4 grid gap-2 sm:grid-cols-3">
             <Button type="button" onClick={acceptDraft} disabled={!draft.trim()}>
-              Accept & Insert
+              采纳并插入正文
             </Button>
             <Button
               type="button"
@@ -486,10 +486,10 @@ export default function XiezuoshiPage() {
               disabled={expandLoading}
               onClick={() => void expandDraft(rewriteNote)}
             >
-              Rewrite
+              按意见重写
             </Button>
             <Button type="button" variant="outline" onClick={discardDraft}>
-              Discard
+              丢弃草稿
             </Button>
           </div>
         </section>
@@ -797,7 +797,7 @@ export default function XiezuoshiPage() {
           <header className="mb-6 flex items-center justify-between gap-4 border-b border-black/10 pb-4 dark:border-white/10">
             <div>
               <div className="text-sm text-zinc-500 dark:text-zinc-400">
-                故事工坊 / OOC 静默检测
+                故事工坊 / 设定偏离提醒
               </div>
               <h1 className="mt-1 text-2xl font-semibold">写作室</h1>
             </div>
@@ -810,7 +810,7 @@ export default function XiezuoshiPage() {
                   setJiaoshoujia((old) => !old);
                 }}
               >
-                脚手架模式
+                辅助大纲模式
               </Button>
               <Button
                 type="button"
@@ -852,7 +852,7 @@ export default function XiezuoshiPage() {
           </p>
 
           <div className="mt-5">
-            <h3 className="text-sm font-medium">哨兵日志</h3>
+            <h3 className="text-sm font-medium">设定偏离提醒</h3>
             <div className="mt-3 grid gap-3">
               {oocLogs.length === 0 ? (
                 <div className="rounded-md border border-dashed border-zinc-300 p-4 text-sm text-zinc-500 dark:border-zinc-700">
@@ -880,7 +880,7 @@ export default function XiezuoshiPage() {
           </div>
 
           <div className="mt-6">
-            <h3 className="text-sm font-medium">已加载实体</h3>
+            <h3 className="text-sm font-medium">当前场景涉及的设定</h3>
             <div className="mt-3 flex flex-wrap gap-2">
               {entityList.slice(0, 20).map((item) => (
                 <span

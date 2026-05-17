@@ -215,10 +215,10 @@ export default function TimelinePage() {
       <div className="mx-auto max-w-7xl px-5 py-8">
         <header className="mb-8 flex flex-col justify-between gap-4 border-b border-stone-300 pb-6 dark:border-stone-800 md:flex-row md:items-end">
           <div>
-            <div className="text-sm text-stone-500">Phase 2 / Step 2</div>
-            <h1 className="mt-1 text-3xl font-semibold">因果之链</h1>
+            <div className="text-sm text-stone-500">故事脉络推演</div>
+            <h1 className="mt-1 text-3xl font-semibold">因果链</h1>
             <p className="mt-3 max-w-2xl leading-7 text-stone-600 dark:text-stone-400">
-              事件可以关联多个角色和一个地点。因果关系先用关联事件与说明保存。
+              将复杂的剧情拆解为具体的事件，把出场人物、发生地点以及事件的前因后果清晰地记录并串联起来。
             </p>
           </div>
           <Button type="button" variant="outline" onClick={loadAll}>
