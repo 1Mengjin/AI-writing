@@ -56,6 +56,21 @@ type FenxiRes = {
   error?: string;
 };
 
+type HistoryPayload = {
+  myText?: string;
+  scene?: string;
+};
+
+type HistoryLog = {
+  id: string;
+  createdAt: string;
+  payload?: HistoryPayload | null;
+};
+
+type HistoryData = {
+  list?: HistoryLog[];
+};
+
 const initSliders = {
   narrativeDistance: 50,
   metaphorDensity: 50,
@@ -79,39 +94,35 @@ function getSliders(style: StyleItem | null) {
 }
 
 export default function WenfengPage() {
-  // 1. 在文件顶部引入 Copy 图标（如果尚未引入）
-// import { Copy, Check } from "lucide-react"; 
+  const [historyList, setHistoryList] = useState<HistoryLog[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [copiedId, setCopiedId] = useState("");
 
-// 2. 在组件内部添加以下状态
-const [historyList, setHistoryList] = useState<any[]>([]);
-const [historyLoading, setHistoryLoading] = useState(false);
-const [copiedId, setCopiedId] = useState(""); // 用于记录哪个文本被复制了
-
-// 3. 编写获取历史记录的函数
-async function loadHistory(styleId: string) {
-  if (!styleId) return;
-  setHistoryLoading(true);
-  try {
-    const res = await fetch(`/api/style-calibration-history?styleId=${styleId}`);
-    const data = await res.json();
-    if (res.ok && data.list) {
-      setHistoryList(data.list);
+  async function loadHistory(styleId: string) {
+    if (!styleId) return;
+    setHistoryLoading(true);
+    try {
+      const res = await fetch(
+        `/api/style-calibration-history?styleId=${styleId}`,
+      );
+      const data = (await res.json()) as HistoryData;
+      if (res.ok && data.list) {
+        setHistoryList(data.list);
+      }
+    } catch (err) {
+      console.error("历史记录加载失败", err);
+    } finally {
+      setHistoryLoading(false);
     }
-  } catch (err) {
-    console.error("历史记录加载失败", err);
-  } finally {
-    setHistoryLoading(false);
   }
-}
 
-// 4. 编写复制文本到剪贴板的函数
-function handleCopy(text: string, logId: string) {
-  if (!text) return;
-  navigator.clipboard.writeText(text).then(() => {
-    setCopiedId(logId);
-    setTimeout(() => setCopiedId(""), 2000); // 2秒后恢复图标
-  });
-}
+  function handleCopy(text: string, logId: string) {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedId(logId);
+      setTimeout(() => setCopiedId(""), 2000);
+    });
+  }
   const [name, setName] = useState("我的第一份文风");
   const [coreText, setCoreText] = useState("");
   const [sketchText, setSketchText] = useState("");
@@ -604,59 +615,69 @@ function handleCopy(text: string, logId: string) {
                 提供我的版本
               </Button>
             </div>
-            {/* 新增的历史记录查看与复制面板 */}
             <div className="mt-6 border-t border-border pt-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold">历史填写的版本 ({historyList.length})</h3>
-                {historyLoading && <Loader2 className="size-3 animate-spin text-muted-foreground" />}
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-sm font-semibold">
+                  历史填写的版本 ({historyList.length})
+                </h3>
+                {historyLoading ? (
+                  <Loader2 className="size-3 animate-spin text-muted-foreground" />
+                ) : null}
               </div>
 
-              <div className="grid gap-3 max-h-[350px] overflow-y-auto pr-1">
+              <div className="grid max-h-[350px] gap-3 overflow-y-auto pr-1">
                 {historyList.length === 0 ? (
-      <p className="text-xs text-muted-foreground py-2 text-center">暂无自定义版本的提交历史。</p>
-    ) : (
-      historyList.map((log) => {
-        const payload = (typeof log.payload === 'object' && log.payload !== null) ? log.payload : {};
-        const textContent = payload.myText || "";
-        const sceneName = payload.scene || "未定场景";
+                  <p className="py-2 text-center text-xs text-muted-foreground">
+                    暂无自定义版本的提交历史。
+                  </p>
+                ) : (
+                  historyList.map((log) => {
+                    const textContent = log.payload?.myText ?? "";
+                    const sceneName = log.payload?.scene ?? "未定场景";
 
-        // 如果用户当时没有提供“我的版本”，则不渲染该条历史
-        if (!textContent.trim()) return null;
+                    if (!textContent.trim()) return null;
 
-        return (
-          <article key={log.id} className="rounded-md border border-border bg-muted/40 p-3 text-xs leading-relaxed relative group">
-            <div className="flex items-center justify-between mb-1 opacity-70">
-              <span className="font-medium bg-background px-1.5 py-0.5 rounded border">
-                场景: {sceneName}
-              </span>
-              <span>{new Date(log.createdAt).toLocaleTimeString()}</span>
+                    return (
+                      <article
+                        key={log.id}
+                        className="group relative rounded-md border border-border bg-muted/40 p-3 text-xs leading-relaxed"
+                      >
+                        <div className="mb-1 flex items-center justify-between opacity-70">
+                          <span className="rounded border bg-background px-1.5 py-0.5 font-medium">
+                            场景: {sceneName}
+                          </span>
+                          <span>
+                            {new Date(log.createdAt).toLocaleTimeString()}
+                          </span>
+                        </div>
+                        <p className="mt-1 whitespace-pre-wrap pr-8 text-muted-foreground">
+                          {textContent}
+                        </p>
+
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="absolute bottom-2 right-2 size-7 opacity-0 transition-opacity group-hover:opacity-100"
+                          onClick={() => handleCopy(textContent, log.id)}
+                          title="复制该文本"
+                        >
+                          {copiedId === log.id ? (
+                            <span className="text-[10px] font-bold text-emerald-600">
+                              已复制
+                            </span>
+                          ) : (
+                            <span className="text-stone-500 hover:text-stone-950">
+                              复制
+                            </span>
+                          )}
+                        </Button>
+                      </article>
+                    );
+                  })
+                )}
+              </div>
             </div>
-            <p className="whitespace-pre-wrap text-muted-foreground mt-1 pr-8">
-              {textContent}
-            </p>
-            
-            {/* 复制按钮，鼠标悬停时显现 */}
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="absolute right-2 bottom-2 size-7 opacity-0 group-hover:opacity-100 transition-opacity"
-              onClick={() => handleCopy(textContent, log.id)}
-              title="复制该文本"
-            >
-              {copiedId === log.id ? (
-                <span className="text-emerald-600 font-bold text-[10px]">已复制</span>
-              ) : (
-                // 引入 lucide-react 的 Copy 图标，或直接用文字代替
-                <span className="text-stone-500 hover:text-stone-950">复制</span>
-              )}
-            </Button>
-          </article>
-        );
-      })
-    )}
-  </div>
-</div>
           </section>
 
 

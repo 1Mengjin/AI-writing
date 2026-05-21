@@ -7,24 +7,10 @@ import StarterKit from "@tiptap/starter-kit";
 import {
   AlertTriangle,
   Loader2,
-  PanelLeftClose,
-  PanelLeftOpen,
   Send,
   ShieldCheck,
   Target,
 } from "lucide-react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import { Button } from "@/components/ui/button";
 
 type OocEntity = {
@@ -63,61 +49,33 @@ type ManyouData = {
   error?: string;
 };
 
-type Luxian = {
+type MetaItem = {
   name: string;
-  turn: string;
-  roles: string[];
+  description: string;
 };
 
-type MaiLuoData = {
-  list?: Luxian[];
+type ExtractedMeta = {
+  characters: MetaItem[];
+  worldItems: MetaItem[];
+  events: MetaItem[];
   error?: string;
 };
 
-type StyleBrief = {
+type ChapterItem = {
   id: string;
-  name: string;
+  title: string;
 };
 
-type ExpandData = {
-  draft?: string;
-  error?: string;
+type SearchItem = {
+  id: string;
+  title: string;
+  text: string;
+  createdAt: string;
 };
 
-const qingGanData = [
-  { name: "1", tension: 22 },
-  { name: "2", tension: 48 },
-  { name: "3", tension: 35 },
-  { name: "4", tension: 72 },
-  { name: "5", tension: 58 },
-  { name: "6", tension: 86 },
-];
-
-const jiezouData = [
-  { name: "动作", value: 30, color: "#dc2626" },
-  { name: "对话", value: 46, color: "#2563eb" },
-  { name: "描写", value: 28, color: "#16a34a" },
-  { name: "内心", value: 18, color: "#9333ea" },
-  { name: "信息", value: 20, color: "#f59e0b" },
-];
+const quickTags = ["#随笔随笔", "#人设演变", "#视频转场", "#宏观构想"];
 
 export default function XiezuoshiPage() {
-  const [leftOpen, setLeftOpen] = useState(true);
-  const [expandMode, setExpandMode] = useState(false);
-  const [outline, setOutline] = useState("");
-  const [draft, setDraft] = useState("");
-  const [rewriteNote, setRewriteNote] = useState("");
-  const [expandLoading, setExpandLoading] = useState(false);
-  const [expandError, setExpandError] = useState("");
-  const [styleId, setStyleId] = useState("");
-  const [styleList, setStyleList] = useState<StyleBrief[]>([]);
-  const [jiaoshoujia, setJiaoshoujia] = useState(false);
-  const [jiegouTab, setJiegouTab] = useState<"qinggan" | "mailuo" | "jiezou">(
-    "qinggan",
-  );
-  const [maiLuoList, setMaiLuoList] = useState<Luxian[]>([]);
-  const [maiLuoLoading, setMaiLuoLoading] = useState(false);
-  const [maiLuoError, setMaiLuoError] = useState("");
   const [manyouInput, setManyouInput] = useState("");
   const [manyouJilu, setManyouJilu] = useState<ManyouMsg[]>([]);
   const [manyouLoading, setManyouLoading] = useState(false);
@@ -125,6 +83,25 @@ export default function XiezuoshiPage() {
   const [entityList, setEntityList] = useState<OocEntity[]>([]);
   const [oocLogs, setOocLogs] = useState<OocLog[]>([]);
   const [oocStatus, setOocStatus] = useState("白名单未加载");
+  const [extractedMeta, setExtractedMeta] = useState<ExtractedMeta | null>(
+    null,
+  );
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [metaError, setMetaError] = useState("");
+  const [metaMsg, setMetaMsg] = useState("");
+  const [chapters, setChapters] = useState<ChapterItem[]>([]);
+  const [leftArchiveTarget, setLeftArchiveTarget] = useState("session");
+  const [rightArchiveTarget, setRightArchiveTarget] = useState("session");
+  const [leftDelivering, setLeftDelivering] = useState(false);
+  const [rightDelivering, setRightDelivering] = useState(false);
+  const [archiveMsg, setArchiveMsg] = useState("");
+  const [archiveError, setArchiveError] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchItem[]>([]);
+  const [activeTag, setActiveTag] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState("");
+  const [copiedSearchId, setCopiedSearchId] = useState("");
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastCheckRef = useRef("");
   const entityRef = useRef<OocEntity[]>([]);
@@ -279,353 +256,409 @@ export default function XiezuoshiPage() {
     void fasongWenti(manyouInput);
   }
 
-  async function maiLuoTuiYan() {
-    const draft = editor?.getText().trim() ?? "";
+  function hasMeta(data: ExtractedMeta | null) {
+    if (!data) return false;
+    return (
+      data.characters.length > 0 ||
+      data.worldItems.length > 0 ||
+      data.events.length > 0
+    );
+  }
 
-    if (!draft) {
-      setMaiLuoError("先写一点文稿");
+  async function loadEntityList() {
+    const res = await fetch("/api/ooc-whitelist");
+    const data = (await res.json()) as { entities?: OocEntity[] };
+    const list = data.entities ?? [];
+
+    entityRef.current = list;
+    setEntityList(list);
+    setOocStatus(`已加载 ${list.length} 个实体`);
+  }
+
+  async function scanMeta() {
+    const nowText = editor?.getText().trim() ?? "";
+
+    if (!nowText) {
+      setMetaError("先写一点随笔再扫描");
       return;
     }
 
-    setMaiLuoLoading(true);
-    setMaiLuoError("");
+    setIsExtracting(true);
+    setMetaError("");
+    setMetaMsg("");
 
     try {
-      const res = await fetch("/api/plot-routes", {
+      const res = await fetch("/api/extract-meta", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ draft }),
+        body: JSON.stringify({ nowText }),
       });
-      const data = (await res.json()) as MaiLuoData;
+      const data = (await res.json()) as ExtractedMeta;
 
       if (!res.ok || data.error) {
-        throw new Error(data.error ?? "推演失败");
+        throw new Error(data.error ?? "提取失败");
       }
 
-      setMaiLuoList(data.list ?? []);
+      setExtractedMeta({
+        characters: data.characters ?? [],
+        worldItems: data.worldItems ?? [],
+        events: data.events ?? [],
+      });
     } catch (err) {
-      setMaiLuoError(err instanceof Error ? err.message : "推演失败");
+      setMetaError(err instanceof Error ? err.message : "提取失败");
     } finally {
-      setMaiLuoLoading(false);
+      setIsExtracting(false);
     }
   }
 
-  function escapeHtml(text: string) {
-    return text
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
+  async function postJson(url: string, body: Record<string, unknown>) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = (await res.json()) as { error?: string };
+
+    if (!res.ok || data.error) {
+      throw new Error(data.error ?? "同步失败");
+    }
   }
 
-  function getContextData() {
-    const text = `${outline}\n${editor?.getText() ?? ""}`;
-    const matched = entityList.filter((item) =>
-      item.keywords.some((key) => key && text.includes(key)),
-    );
+  async function syncMeta() {
+    if (!hasMeta(extractedMeta) || !extractedMeta) return;
+
+    setSyncLoading(true);
+    setMetaError("");
+    setMetaMsg("");
+
+    try {
+      for (const item of extractedMeta.characters) {
+        await postJson("/api/characters", {
+          name: item.name,
+          values: item.description,
+        });
+      }
+
+      for (const item of extractedMeta.worldItems) {
+        await postJson("/api/world-items", {
+          name: item.name,
+          type: "设定",
+          desc: item.description,
+          rules: item.description,
+        });
+      }
+
+      for (const item of extractedMeta.events) {
+        await postJson("/api/timeline-events", {
+          title: item.name,
+          status: "已提取",
+          summary: item.description,
+        });
+      }
+
+      setExtractedMeta(null);
+      setMetaMsg("已同步到设定集");
+      await loadEntityList();
+    } catch (err) {
+      setMetaError(err instanceof Error ? err.message : "同步失败");
+    } finally {
+      setSyncLoading(false);
+    }
+  }
+
+  function getArchiveTarget(value: string) {
+    if (value === "session") {
+      return { targetType: "session", targetId: "" };
+    }
 
     return {
-      characterStates: matched
-        .filter((item) => item.kind === "character")
-        .map((item) => ({
-          id: item.id,
-          keywords: item.keywords,
-          data: item.data,
-        })),
-      itemRules: matched
-        .filter((item) => item.kind === "worldItem")
-        .map((item) => ({
-          id: item.id,
-          keywords: item.keywords,
-          data: item.data,
-        })),
+      targetType: "chapter",
+      targetId: value.replace(/^chapter:/, ""),
     };
   }
 
-  async function expandDraft(note = "") {
-    const recentText = editor?.getText().slice(-1000) ?? "";
-    const contextData = getContextData();
+  function getManyouContent() {
+    return manyouJilu
+      .map((item) => `${item.role === "user" ? "用户" : "外置大脑"}：${item.content}`)
+      .join("\n\n")
+      .trim();
+  }
 
-    if (!outline.trim()) {
-      setExpandError("先写大纲");
+  async function deliverArchive(source: "left" | "right") {
+    const isLeft = source === "left";
+    const content = isLeft ? getManyouContent() : (editor?.getText().trim() ?? "");
+    const targetValue = isLeft ? leftArchiveTarget : rightArchiveTarget;
+    const { targetType, targetId } = getArchiveTarget(targetValue);
+
+    if (!content) {
+      setArchiveError(isLeft ? "暂无漫游对话可投递" : "暂无随笔内容可投递");
       return;
     }
 
-    setExpandLoading(true);
-    setExpandError("");
+    setArchiveError("");
+    setArchiveMsg("");
+    if (isLeft) {
+      setLeftDelivering(true);
+    } else {
+      setRightDelivering(true);
+    }
 
     try {
-      const res = await fetch("/api/outline-expand", {
+      const res = await fetch("/api/deliver-inspiration", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          outline,
-          recentText,
-          styleId,
-          rewriteNote: note,
-          characterStates: contextData.characterStates,
-          itemRules: contextData.itemRules,
+          content,
+          targetType,
+          targetId,
         }),
       });
-      const data = (await res.json()) as ExpandData;
+      const data = (await res.json()) as { error?: string };
 
       if (!res.ok || data.error) {
-        throw new Error(data.error ?? "扩写失败");
+        throw new Error(data.error ?? "投递失败");
       }
 
-      setDraft(data.draft ?? "");
+      if (isLeft) {
+        setManyouInput("");
+      }
+      setArchiveMsg("资产已成功打包投递，已收入大脑分支");
     } catch (err) {
-      setExpandError(err instanceof Error ? err.message : "扩写失败");
+      setArchiveError(err instanceof Error ? err.message : "投递失败");
     } finally {
-      setExpandLoading(false);
+      if (isLeft) {
+        setLeftDelivering(false);
+      } else {
+        setRightDelivering(false);
+      }
     }
   }
 
-  function acceptDraft() {
-    if (!editor || !draft.trim()) return;
+  async function searchBrain(raw: string) {
+    const tag = raw.trim();
 
-    const html = draft
-      .split(/\n+/)
-      .filter(Boolean)
-      .map((line) => `<p>${escapeHtml(line)}</p>`)
-      .join("");
+    if (!tag) {
+      setSearchResults([]);
+      setActiveTag("");
+      return;
+    }
 
-    editor
-      .chain()
-      .focus()
-      .setTextSelection(editor.state.doc.content.size)
-      .insertContent(html)
-      .run();
-    setOutline("");
-    setDraft("");
-    setRewriteNote("");
-    setExpandError("");
+    setActiveTag(tag);
+    setIsSearching(true);
+    setSearchError("");
+
+    try {
+      const res = await fetch(
+        `/api/global-search?tag=${encodeURIComponent(tag.replace(/^#/, ""))}`,
+      );
+      const data = (await res.json()) as {
+        list?: SearchItem[];
+        error?: string;
+      };
+
+      if (!res.ok || data.error) {
+        throw new Error(data.error ?? "检索失败");
+      }
+
+      setSearchResults(data.list ?? []);
+    } catch (err) {
+      setSearchError(err instanceof Error ? err.message : "检索失败");
+    } finally {
+      setIsSearching(false);
+    }
   }
 
-  function discardDraft() {
-    setDraft("");
-    setRewriteNote("");
-    setExpandError("");
+  function copySearchItem(item: SearchItem) {
+    const text = `[${item.title}] ${new Date(item.createdAt).toLocaleString()}\n\n${item.text}`;
+
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedSearchId(item.id);
+      setTimeout(() => setCopiedSearchId(""), 1500);
+    });
   }
 
-  function renderExpandMode() {
-    const contextData = getContextData();
+  function renderMetaGroup(title: string, list: MetaItem[]) {
+    if (list.length === 0) return null;
 
     return (
-      <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
-        <section className="rounded-lg border border-black/10 bg-white/90 p-5 shadow-sm dark:border-white/10 dark:bg-zinc-900">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-xl font-semibold">大纲输入</h2>
-            <Button
-              type="button"
-              disabled={expandLoading}
-              onClick={() => void expandDraft()}
+      <div>
+        <h4 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+          {title}
+        </h4>
+        <div className="mt-2 grid gap-2">
+          {list.map((item) => (
+            <article
+              key={`${title}-${item.name}-${item.description}`}
+              className="rounded-md border border-zinc-200 bg-white/70 p-3 text-sm dark:border-zinc-800 dark:bg-zinc-950"
             >
-              {expandLoading ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : null}
-              生成草稿
-            </Button>
-          </div>
-          <textarea
-            value={outline}
-            onChange={(e) => setOutline(e.target.value)}
-            placeholder="写主线脉络、核心动作或对话大意。"
-            className="mt-4 min-h-[62vh] w-full resize-y rounded-md border border-zinc-200 bg-[#fffdf8] p-4 text-base leading-8 outline-none focus:ring-2 focus:ring-zinc-500 dark:border-zinc-800 dark:bg-zinc-950"
-          />
-          <div className="mt-3 grid gap-2 text-xs text-zinc-500">
-            <div>参考前文：自动截取主编辑器最后 1000 字</div>
-            <div>涉及登场角色：{contextData.characterStates.length}</div>
-            <div>涉及物品与地点：{contextData.itemRules.length}</div>
-          </div>
-        </section>
-
-        <section className="rounded-lg border border-black/10 bg-white/90 p-5 shadow-sm dark:border-white/10 dark:bg-zinc-900">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-xl font-semibold">草稿审批台</h2>
-            <select
-              value={styleId}
-              onChange={(e) => setStyleId(e.target.value)}
-              className="h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm outline-none dark:border-zinc-800 dark:bg-zinc-950"
-            >
-              <option value="">使用最新文风</option>
-              {styleList.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {expandError ? (
-            <div className="mt-3 rounded-md border border-red-500/30 bg-red-500/10 p-2 text-sm text-red-600">
-              {expandError}
-            </div>
-          ) : null}
-
-          <textarea
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="生成后的正文会先停在这里，不会直接写入主编辑器。"
-            className="mt-4 min-h-[52vh] w-full resize-y rounded-md border border-zinc-200 bg-[#fffdf8] p-4 font-serif text-lg leading-9 outline-none focus:ring-2 focus:ring-zinc-500 dark:border-zinc-800 dark:bg-zinc-950"
-          />
-
-          <input
-            value={rewriteNote}
-            onChange={(e) => setRewriteNote(e.target.value)}
-            placeholder="修改意见，例如：动作描写太啰嗦，精简点"
-            className="mt-3 h-10 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-zinc-500 dark:border-zinc-800 dark:bg-zinc-950"
-          />
-
-          <div className="mt-4 grid gap-2 sm:grid-cols-3">
-            <Button type="button" onClick={acceptDraft} disabled={!draft.trim()}>
-              采纳并插入正文
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={expandLoading}
-              onClick={() => void expandDraft(rewriteNote)}
-            >
-              按意见重写
-            </Button>
-            <Button type="button" variant="outline" onClick={discardDraft}>
-              丢弃草稿
-            </Button>
-          </div>
-        </section>
+              <div className="font-medium">{item.name}</div>
+              <p className="mt-1 leading-6 text-zinc-600 dark:text-zinc-400">
+                {item.description}
+              </p>
+            </article>
+          ))}
+        </div>
       </div>
     );
   }
 
-  function renderJiegouPanel() {
+  function renderArchiveBox(source: "left" | "right") {
+    const isLeft = source === "left";
+    const target = isLeft ? leftArchiveTarget : rightArchiveTarget;
+    const setTarget = isLeft ? setLeftArchiveTarget : setRightArchiveTarget;
+    const loading = isLeft ? leftDelivering : rightDelivering;
+    const dark = isLeft;
+
     return (
-      <aside className="rounded-lg border border-black/10 bg-white/85 p-5 shadow-sm dark:border-white/10 dark:bg-zinc-900">
-        <div className="flex flex-wrap gap-2">
-          {[
-            ["qinggan", "情感曲线"],
-            ["mailuo", "脉络推演"],
-            ["jiezou", "节奏扫描"],
-          ].map(([key, label]) => (
-            <Button
-              key={key}
+      <div
+        className={
+          dark
+            ? "mt-4 rounded-lg border border-white/10 bg-white/5 p-3"
+            : "mt-6 rounded-lg border border-black/10 bg-[#fffdf8] p-4 dark:border-white/10 dark:bg-zinc-950"
+        }
+      >
+        <h3
+          className={
+            dark
+              ? "text-sm font-semibold text-zinc-100"
+              : "text-sm font-semibold"
+          }
+        >
+          一键归档至外置大脑
+        </h3>
+        <select
+          value={target}
+          onChange={(e) => setTarget(e.target.value)}
+          className={
+            dark
+              ? "mt-3 h-9 w-full rounded-md border border-white/10 bg-zinc-900 px-2 text-sm text-zinc-100 outline-none focus:ring-2 focus:ring-amber-300"
+              : "mt-3 h-9 w-full rounded-md border border-zinc-200 bg-white px-2 text-sm outline-none focus:ring-2 focus:ring-amber-500 dark:border-zinc-800 dark:bg-zinc-900"
+          }
+        >
+          <option value="session">归档为独立随笔日志</option>
+          {chapters.map((item) => (
+            <option key={item.id} value={`chapter:${item.id}`}>
+              投递至已有文章/视频：{item.title}
+            </option>
+          ))}
+        </select>
+        <Button
+          type="button"
+          disabled={loading}
+          onClick={() => void deliverArchive(source)}
+          className="mt-3 w-full"
+          variant={dark ? "default" : "outline"}
+        >
+          {loading ? <Loader2 className="size-4 animate-spin" /> : null}
+          {loading ? "正在投递" : "确认投递打包"}
+        </Button>
+        {archiveError ? (
+          <div
+            className={
+              dark
+                ? "mt-3 rounded-md border border-red-400/30 bg-red-400/10 p-2 text-xs text-red-200"
+                : "mt-3 rounded-md border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-600"
+            }
+          >
+            {archiveError}
+          </div>
+        ) : null}
+        {archiveMsg ? (
+          <div
+            className={
+              dark
+                ? "mt-3 rounded-md border border-emerald-400/30 bg-emerald-400/10 p-2 text-xs text-emerald-200"
+                : "mt-3 rounded-md border border-emerald-500/30 bg-emerald-500/10 p-2 text-xs text-emerald-700 dark:text-emerald-300"
+            }
+          >
+            {archiveMsg}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  function renderBrainIndex() {
+    return (
+      <div className="mt-6 rounded-lg border border-black/10 bg-white/75 p-4 dark:border-white/10 dark:bg-zinc-950">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-sm font-semibold">大脑索引看板</h3>
+          {isSearching ? (
+            <Loader2 className="size-4 animate-spin text-zinc-500" />
+          ) : null}
+        </div>
+
+        <div className="mt-3 flex flex-wrap gap-2">
+          {quickTags.map((tag) => (
+            <button
+              key={tag}
               type="button"
-              size="sm"
-              variant={jiegouTab === key ? "default" : "outline"}
-              onClick={() =>
-                setJiegouTab(key as "qinggan" | "mailuo" | "jiezou")
+              onClick={() => void searchBrain(tag)}
+              className={
+                activeTag === tag
+                  ? "rounded-md bg-zinc-950 px-2 py-1 text-xs text-white dark:bg-amber-300 dark:text-black"
+                  : "rounded-md border border-zinc-200 px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900"
               }
             >
-              {label}
-            </Button>
+              {tag}
+            </button>
           ))}
         </div>
 
-        {jiegouTab === "qinggan" ? (
-          <div className="mt-5">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-lg font-semibold">情感曲线</h2>
-              <span className="text-xs text-zinc-500">点击点位预留标注</span>
-            </div>
-            <div className="h-72 rounded-md border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={qingGanData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis domain={[0, 100]} />
-                  <Tooltip />
-                  <Line
-                    type="monotone"
-                    dataKey="tension"
-                    stroke="#dc2626"
-                    strokeWidth={2}
-                    dot={{ r: 4 }}
-                    onClick={() => setMaiLuoError("手动标注入口已预留")}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+        <input
+          value={activeTag}
+          onChange={(e) => setActiveTag(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              void searchBrain(activeTag);
+            }
+          }}
+          placeholder="搜索旧灵感、标签或关键词"
+          className="mt-3 h-9 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500 dark:border-zinc-800 dark:bg-zinc-900"
+        />
+
+        {searchError ? (
+          <div className="mt-3 rounded-md border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-600">
+            {searchError}
           </div>
         ) : null}
 
-        {jiegouTab === "mailuo" ? (
-          <div className="mt-5">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold">脉络推演</h2>
-              <Button
-                type="button"
-                size="sm"
-                disabled={maiLuoLoading}
-                onClick={() => void maiLuoTuiYan()}
-              >
-                {maiLuoLoading ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : null}
-                获取推演
-              </Button>
+        <div className="mt-3 max-h-80 overflow-y-auto pr-1">
+          {searchResults.length === 0 ? (
+            <div className="rounded-md border border-dashed border-zinc-300 p-3 text-sm text-zinc-500 dark:border-zinc-700">
+              {activeTag ? "暂无匹配记录。" : "选择标签或输入关键词开始检索。"}
             </div>
-
-            {maiLuoError ? (
-              <div className="mt-3 rounded-md border border-red-500/30 bg-red-500/10 p-2 text-sm text-red-600">
-                {maiLuoError}
-              </div>
-            ) : null}
-
-            <div className="mt-4 grid gap-3">
-              {maiLuoList.length === 0 ? (
-                <div className="rounded-md border border-dashed border-zinc-300 p-4 text-sm text-zinc-500 dark:border-zinc-700">
-                  暂无路线。点击获取推演后只会生成纲要卡片。
-                </div>
-              ) : (
-                maiLuoList.map((item) => (
-                  <article
-                    key={`${item.name}-${item.turn}`}
-                    className="rounded-md border border-zinc-200 bg-zinc-50 p-4 text-sm dark:border-zinc-800 dark:bg-zinc-950"
-                  >
-                    <h3 className="font-semibold">{item.name}</h3>
-                    <p className="mt-2 leading-6 text-zinc-700 dark:text-zinc-300">
-                      {item.turn}
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {item.roles.map((role) => (
-                        <span
-                          key={role}
-                          className="rounded-md bg-amber-100 px-2 py-1 text-xs text-amber-900 dark:bg-amber-300 dark:text-black"
-                        >
-                          {role}
-                        </span>
-                      ))}
+          ) : (
+            <div className="grid gap-2">
+              {searchResults.map((item) => (
+                <article
+                  key={`${item.title}-${item.id}`}
+                  className="rounded-md border border-zinc-200 bg-[#fffdf8] p-3 text-sm dark:border-zinc-800 dark:bg-zinc-900"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="font-medium">[{item.title}]</div>
+                      <div className="mt-1 text-xs text-zinc-500">
+                        {new Date(item.createdAt).toLocaleString()}
+                      </div>
                     </div>
-                  </article>
-                ))
-              )}
+                    <button
+                      type="button"
+                      onClick={() => copySearchItem(item)}
+                      className="shrink-0 rounded-md border border-zinc-200 px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                    >
+                      {copiedSearchId === item.id ? "已复制" : "全量复制"}
+                    </button>
+                  </div>
+                  <p className="mt-2 line-clamp-4 leading-6 text-zinc-600 dark:text-zinc-400">
+                    {item.text}
+                  </p>
+                </article>
+              ))}
             </div>
-          </div>
-        ) : null}
-
-        {jiegouTab === "jiezou" ? (
-          <div className="mt-5">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-lg font-semibold">节奏扫描</h2>
-              <span className="text-xs text-zinc-500">模拟数据占位</span>
-            </div>
-            <div className="h-72 rounded-md border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={jiezouData} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis type="number" hide />
-                  <YAxis type="category" dataKey="name" width={50} />
-                  <Tooltip />
-                  <Bar dataKey="value" radius={[4, 4, 4, 4]}>
-                    {jiezouData.map((item) => (
-                      <Cell key={item.name} fill={item.color} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        ) : null}
-      </aside>
+          )}
+        </div>
+      </div>
     );
   }
 
@@ -654,19 +687,20 @@ export default function XiezuoshiPage() {
   useEffect(() => {
     let stop = false;
 
-    fetch("/api/style-models")
+    fetch("/api/chapters")
       .then((res) => res.json())
-      .then((data: { list?: StyleBrief[] }) => {
+      .then((data: { list?: ChapterItem[]; error?: string }) => {
         if (stop) return;
-        const list = data.list ?? [];
-        setStyleList(list);
 
-        if (list[0]) {
-          setStyleId(list[0].id);
+        if (data.error) {
+          setArchiveError(data.error);
+          return;
         }
+
+        setChapters(data.list ?? []);
       })
       .catch(() => {
-        if (!stop) setStyleList([]);
+        if (!stop) setArchiveError("文章列表加载失败");
       });
 
     return () => {
@@ -676,152 +710,105 @@ export default function XiezuoshiPage() {
 
   return (
     <main className="min-h-screen bg-[#f4f1eb] text-zinc-950 dark:bg-zinc-950 dark:text-zinc-50">
-      <div
-        className={
-          expandMode
-            ? "mx-auto max-w-[1500px] px-5 py-8"
-            : jiaoshoujia && leftOpen
-            ? "mx-auto grid max-w-[1500px] gap-5 px-5 py-8 xl:grid-cols-[320px_1fr]"
-            : jiaoshoujia
-              ? "mx-auto grid max-w-[1500px] gap-5 px-5 py-8 xl:grid-cols-[52px_1fr]"
-              : leftOpen
-            ? "mx-auto grid max-w-[1500px] gap-5 px-5 py-8 xl:grid-cols-[320px_1fr_340px]"
-            : "mx-auto grid max-w-[1500px] gap-5 px-5 py-8 xl:grid-cols-[52px_1fr_340px]"
-        }
-      >
-        {!expandMode ? (
+      <div className="mx-auto grid max-w-[1500px] gap-5 px-5 py-8 lg:grid-cols-[320px_minmax(0,1fr)] 2xl:grid-cols-[320px_minmax(0,1fr)_340px]">
         <aside className="rounded-lg border border-black/10 bg-zinc-950 text-zinc-50 shadow-sm dark:border-white/10">
-          <div className="flex items-center justify-between border-b border-white/10 p-3">
-            {leftOpen ? <h2 className="text-lg font-semibold">灵感漫游</h2> : null}
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              onClick={() => setLeftOpen((old) => !old)}
-            >
-              {leftOpen ? (
-                <PanelLeftClose className="size-4" />
-              ) : (
-                <PanelLeftOpen className="size-4" />
-              )}
-            </Button>
+          <div className="border-b border-white/10 p-4">
+            <h2 className="text-lg font-semibold">灵感漫游</h2>
           </div>
 
-          {leftOpen ? (
-            <div className="flex h-[78vh] flex-col p-4">
-              <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-                {manyouJilu.length === 0 ? (
-                  <div className="rounded-md border border-dashed border-white/15 p-4 text-sm leading-6 text-zinc-400">
-                    写一个模糊念头。这里不会替你写，只会追问。
-                  </div>
-                ) : (
-                  <div className="grid gap-3">
-                    {manyouJilu.map((item) => (
-                      <article
-                        key={item.id}
-                        className={
-                          item.role === "user"
-                            ? "ml-8 rounded-md bg-amber-300 p-3 text-sm leading-6 text-black"
-                            : "mr-8 rounded-md bg-zinc-900 p-3 text-sm leading-6 text-zinc-100"
-                        }
-                      >
-                        <div className="whitespace-pre-wrap">{item.content}</div>
-                        {item.role === "assistant" ? (
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                void fasongWenti(
-                                  "",
-                                  `围绕这条回应展开聊聊：${item.content}`,
-                                )
-                              }
-                              className="rounded-md border border-white/15 px-2 py-1 text-xs text-zinc-200 hover:bg-white/10"
-                            >
-                              展开聊聊
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                void fasongWenti(
-                                  "",
-                                  `换一个方向，不沿用这条回应：${item.content}`,
-                                )
-                              }
-                              className="rounded-md border border-white/15 px-2 py-1 text-xs text-zinc-200 hover:bg-white/10"
-                            >
-                              不，换个方向
-                            </button>
-                          </div>
-                        ) : null}
-                      </article>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {manyouError ? (
-                <div className="mt-3 rounded-md border border-red-400/30 bg-red-400/10 p-2 text-sm text-red-200">
-                  {manyouError}
+          <div className="flex h-[78vh] flex-col p-4">
+            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+              {manyouJilu.length === 0 ? (
+                <div className="rounded-md border border-dashed border-white/15 p-4 text-sm leading-6 text-zinc-400">
+                  写一个模糊念头。这里不会替你写，只会追问。
                 </div>
-              ) : null}
-
-              <div className="mt-3">
-                <textarea
-                  value={manyouInput}
-                  onChange={(e) => setManyouInput(e.target.value)}
-                  onKeyDown={onManyouKey}
-                  placeholder="写一个模糊的念头，然后按 Enter"
-                  className="min-h-24 w-full resize-none rounded-md border border-white/10 bg-zinc-900 p-3 text-sm leading-6 outline-none focus:ring-2 focus:ring-amber-300"
-                />
-                <Button
-                  type="button"
-                  disabled={manyouLoading}
-                  onClick={() => void fasongWenti(manyouInput)}
-                  className="mt-2 w-full"
-                >
-                  {manyouLoading ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <Send className="size-4" />
-                  )}
-                  {manyouLoading ? "正在追问" : "发送"}
-                </Button>
-              </div>
+              ) : (
+                <div className="grid gap-3">
+                  {manyouJilu.map((item) => (
+                    <article
+                      key={item.id}
+                      className={
+                        item.role === "user"
+                          ? "ml-8 rounded-md bg-amber-300 p-3 text-sm leading-6 text-black"
+                          : "mr-8 rounded-md bg-zinc-900 p-3 text-sm leading-6 text-zinc-100"
+                      }
+                    >
+                      <div className="whitespace-pre-wrap">{item.content}</div>
+                      {item.role === "assistant" ? (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void fasongWenti(
+                                "",
+                                `围绕这条回应展开聊聊：${item.content}`,
+                              )
+                            }
+                            className="rounded-md border border-white/15 px-2 py-1 text-xs text-zinc-200 hover:bg-white/10"
+                          >
+                            展开聊聊
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void fasongWenti(
+                                "",
+                                `换一个方向，不沿用这条回应：${item.content}`,
+                              )
+                            }
+                            className="rounded-md border border-white/15 px-2 py-1 text-xs text-zinc-200 hover:bg-white/10"
+                          >
+                            不，换个方向
+                          </button>
+                        </div>
+                      ) : null}
+                    </article>
+                  ))}
+                </div>
+              )}
+              {renderArchiveBox("left")}
             </div>
-          ) : null}
+
+            {manyouError ? (
+              <div className="mt-3 rounded-md border border-red-400/30 bg-red-400/10 p-2 text-sm text-red-200">
+                {manyouError}
+              </div>
+            ) : null}
+
+            <div className="mt-3">
+              <textarea
+                value={manyouInput}
+                onChange={(e) => setManyouInput(e.target.value)}
+                onKeyDown={onManyouKey}
+                placeholder="写一个模糊的念头，然后按 Enter"
+                className="min-h-24 w-full resize-none rounded-md border border-white/10 bg-zinc-900 p-3 text-sm leading-6 outline-none focus:ring-2 focus:ring-amber-300"
+              />
+              <Button
+                type="button"
+                disabled={manyouLoading}
+                onClick={() => void fasongWenti(manyouInput)}
+                className="mt-2 w-full"
+              >
+                {manyouLoading ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Send className="size-4" />
+                )}
+                {manyouLoading ? "正在追问" : "发送"}
+              </Button>
+            </div>
+          </div>
         </aside>
-        ) : null}
 
         <section className="rounded-lg border border-black/10 bg-[#fffdf8] p-6 shadow-sm dark:border-white/10 dark:bg-zinc-900">
           <header className="mb-6 flex items-center justify-between gap-4 border-b border-black/10 pb-4 dark:border-white/10">
             <div>
               <div className="text-sm text-zinc-500 dark:text-zinc-400">
-                故事工坊 / 设定偏离提醒
+                随笔记录 / 静默感知
               </div>
               <h1 className="mt-1 text-2xl font-semibold">写作室</h1>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                variant={jiaoshoujia ? "default" : "outline"}
-                onClick={() => {
-                  setExpandMode(false);
-                  setJiaoshoujia((old) => !old);
-                }}
-              >
-                辅助大纲模式
-              </Button>
-              <Button
-                type="button"
-                variant={expandMode ? "default" : "outline"}
-                onClick={() => {
-                  setJiaoshoujia(false);
-                  setExpandMode((old) => !old);
-                }}
-              >
-                扩写模式
-              </Button>
               <div className="flex items-center gap-2 rounded-md bg-amber-100 px-3 py-2 text-sm text-amber-900 dark:bg-amber-300 dark:text-black">
                 <Target className="size-4" />
                 停笔 3 秒后才检查
@@ -829,24 +816,75 @@ export default function XiezuoshiPage() {
             </div>
           </header>
 
-          {expandMode ? (
-            renderExpandMode()
-          ) : jiaoshoujia ? (
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
-              <EditorContent editor={editor} className="xiezuo-editor" />
-              {renderJiegouPanel()}
-            </div>
-          ) : (
-            <EditorContent editor={editor} className="xiezuo-editor" />
-          )}
+          <EditorContent editor={editor} className="xiezuo-editor" />
         </section>
 
-        {!jiaoshoujia && !expandMode ? (
         <aside className="rounded-lg border border-black/10 bg-white/80 p-5 shadow-sm dark:border-white/10 dark:bg-zinc-900">
           <div className="flex items-center gap-2">
             <ShieldCheck className="size-5 text-amber-600" />
-            <h2 className="text-xl font-semibold">上下文感知</h2>
+            <h2 className="text-xl font-semibold">外置大脑记录感知</h2>
           </div>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isExtracting || syncLoading}
+            onClick={() => void scanMeta()}
+            className="mt-4 w-full border-amber-300 bg-amber-50 text-amber-950 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100 dark:hover:bg-amber-900"
+          >
+            {isExtracting ? <Loader2 className="size-4 animate-spin" /> : null}
+            {isExtracting ? "正在扫描" : "🧠 扫描随笔并提取设定"}
+          </Button>
+
+          {metaError ? (
+            <div className="mt-3 rounded-md border border-red-500/30 bg-red-500/10 p-2 text-sm text-red-600">
+              {metaError}
+            </div>
+          ) : null}
+
+          {metaMsg ? (
+            <div className="mt-3 rounded-md border border-emerald-500/30 bg-emerald-500/10 p-2 text-sm text-emerald-700 dark:text-emerald-300">
+              {metaMsg}
+            </div>
+          ) : null}
+
+          {extractedMeta ? (
+            <div className="mt-5 rounded-lg border border-black/10 bg-[#fffdf8] p-4 dark:border-white/10 dark:bg-zinc-950">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-sm font-semibold">待审查设定片段</h3>
+                <span className="rounded-md bg-zinc-100 px-2 py-1 text-xs text-zinc-500 dark:bg-zinc-800">
+                  {extractedMeta.characters.length +
+                    extractedMeta.worldItems.length +
+                    extractedMeta.events.length}
+                  条
+                </span>
+              </div>
+
+              {hasMeta(extractedMeta) ? (
+                <div className="mt-4 grid gap-4">
+                  {renderMetaGroup("人物潜在特质", extractedMeta.characters)}
+                  {renderMetaGroup("事物/地点规则", extractedMeta.worldItems)}
+                  {renderMetaGroup("时间线事件", extractedMeta.events)}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={syncLoading}
+                    onClick={() => void syncMeta()}
+                    className="w-full"
+                  >
+                    {syncLoading ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : null}
+                    确认同步到设定集
+                  </Button>
+                </div>
+              ) : (
+                <div className="mt-3 rounded-md border border-dashed border-zinc-300 p-3 text-sm text-zinc-500 dark:border-zinc-700">
+                  没有提取到足够硬的设定事实。
+                </div>
+              )}
+            </div>
+          ) : null}
+
           <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
             {oocStatus}
           </p>
@@ -880,7 +918,7 @@ export default function XiezuoshiPage() {
           </div>
 
           <div className="mt-6">
-            <h3 className="text-sm font-medium">当前场景涉及的设定</h3>
+            <h3 className="text-sm font-medium">当前随笔触及的记录</h3>
             <div className="mt-3 flex flex-wrap gap-2">
               {entityList.slice(0, 20).map((item) => (
                 <span
@@ -892,8 +930,10 @@ export default function XiezuoshiPage() {
               ))}
             </div>
           </div>
+
+          {renderArchiveBox("right")}
+          {renderBrainIndex()}
         </aside>
-        ) : null}
       </div>
     </main>
   );
